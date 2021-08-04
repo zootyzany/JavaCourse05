@@ -1,11 +1,8 @@
+/*
 package com.zz.example;
 
 import java.util.Base64;
 
-/**
- * @author zhouzeng
- * @date 2021/08/03
- */
 public class HelloClassLoader extends ClassLoader {
 
     public static void main(String[] args) throws Exception {
@@ -22,4 +19,4 @@ public class HelloClassLoader extends ClassLoader {
     public byte[] decode(String base64) {
         return Base64.getDecoder().decode(base64);
     }
-}
+}*/
