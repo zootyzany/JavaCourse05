@@ -47,13 +47,15 @@ public class XlassClassLoader extends ClassLoader {
      */
     @Override
     public Class<?> findClass(String className) throws ClassNotFoundException {
+
+        // 可以使用Files.readAllBytes()
         URL url = XlassClassLoader.class.getClassLoader().getResource(FILE_NAME_WITH_SUFFIX);
         String fileFullPath = Objects.requireNonNull(url).getPath();
 
         try {
             FileInputStream fis = new FileInputStream(new File(fileFullPath));
-            ByteArrayOutputStream bos = buildOppositeByteArrayOutputStream(fis);
-            return defineClass(className, bos.toByteArray(), 0, bos.toByteArray().length);
+            byte[] bytes = buildBytes(fis);
+            return defineClass(className, bytes, 0, bytes.length);
         } catch (Exception e) {
             log.error("Find the class failed! cause:{}, className:{}", e, className);
             throw new ClassNotFoundException(className);
@@ -64,9 +66,10 @@ public class XlassClassLoader extends ClassLoader {
      * 文件内容中所有字节（x=255-x）处理后,往ByteArrayOutputStream中写.
      *
      * @param fis FileInputStream
+     * @return 返回文件流对应的byte数组
      * @throws IOException e
      */
-    public ByteArrayOutputStream buildOppositeByteArrayOutputStream(FileInputStream fis) throws IOException {
+    public byte[] buildBytes(FileInputStream fis) throws IOException {
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         int temp;
         while ((temp = fis.read()) != -1) {
@@ -74,8 +77,7 @@ public class XlassClassLoader extends ClassLoader {
         }
         fis.close();
         bos.close();
-        return bos;
+        return bos.toByteArray();
     }
-
 
 }
