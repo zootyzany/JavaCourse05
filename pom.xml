@@ -16,6 +16,7 @@
     <modules>
         <module>week01</module>
         <module>week02</module>
+        <module>test</module>
     </modules>
 
     <packaging>pom</packaging>

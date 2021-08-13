@@ -1,10 +1,10 @@
-package com.zz.example;
+package com.zz.example.nio.client;
 
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestTemplate;
 
-import java.util.HashMap;
+import java.util.Collections;
 
 
 /**
@@ -14,7 +14,8 @@ import java.util.HashMap;
 public class RestTemplateClientDemo {
     public static void main(String[] args) {
         RestTemplate restTemplate = new RestTemplate();
-        ResponseEntity<String> responseEntity = restTemplate.exchange("http://localhost:8081", HttpMethod.GET, null, String.class, new HashMap<>());
+        @SuppressWarnings("unchecked")
+        ResponseEntity<String> responseEntity = restTemplate.exchange("http://localhost:8081", HttpMethod.GET, null, String.class, Collections.EMPTY_MAP);
         System.out.println(responseEntity.getBody());
     }
 }

@@ -1,4 +1,4 @@
-package com.zz.example;
+package com.zz.example.nio.client;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
@@ -39,7 +39,7 @@ public class HttpClientDemo {
             response = httpclient.execute(get);
             System.out.println(response.getStatusLine());
 
-            if (200 == response.getStatusLine().getStatusCode()) {
+            if (response.getStatusLine().getStatusCode() == 200) {
                 HttpEntity entity = response.getEntity();
                 resultString = EntityUtils.toString(entity, "utf-8");
             }
