@@ -1,6 +1,9 @@
 package com.zz.example.nio.client;
 
 import org.apache.http.HttpEntity;
+import org.apache.http.HttpResponse;
+import org.apache.http.client.ClientProtocolException;
+import org.apache.http.client.ResponseHandler;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.utils.URIBuilder;
@@ -37,6 +40,12 @@ public class HttpClientDemo {
             }
             HttpGet get = new HttpGet(builder.build());
             response = httpclient.execute(get);
+            httpclient.execute(get, new ResponseHandler<Object>() {
+                @Override
+                public Object handleResponse(HttpResponse response) throws ClientProtocolException, IOException {
+                    return null;
+                }
+            });
             System.out.println(response.getStatusLine());
 
             if (response.getStatusLine().getStatusCode() == 200) {
