@@ -1,5 +1,6 @@
 package io.github.kimmking.gateway.inbound;
 
+import io.github.kimmking.gateway.NettyServerApplication;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.channel.Channel;
@@ -11,6 +12,8 @@ import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
 import lombok.Data;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 
@@ -19,6 +22,7 @@ import java.util.List;
  */
 @Data
 public class HttpInboundServer {
+    private static Logger logger = LoggerFactory.getLogger(NettyServerApplication.class);
 
     private int port;
 
@@ -31,8 +35,12 @@ public class HttpInboundServer {
 
     public void run() throws Exception {
 
-        EventLoopGroup bossGroup = new NioEventLoopGroup(1);
-        EventLoopGroup workerGroup = new NioEventLoopGroup(16);
+        // 从系统参数中获取 bossThreadNum、workerThreadNum 变量
+        int bossThreadNum = Integer.parseInt(System.getProperty("bossThreadNum", "1"));
+        int workerThreadNum = Integer.parseInt(System.getProperty("workerThreadNum", "16"));
+
+        EventLoopGroup bossGroup = new NioEventLoopGroup(bossThreadNum);
+        EventLoopGroup workerGroup = new NioEventLoopGroup(workerThreadNum);
 
         try {
             ServerBootstrap b = new ServerBootstrap();
@@ -51,7 +59,8 @@ public class HttpInboundServer {
                     .childHandler(new HttpInboundInitializer(this.proxyServers));
 
             Channel ch = b.bind(port).sync().channel();
-            System.out.println("开启netty http服务器，监听地址和端口为 http://127.0.0.1:" + port + '/');
+
+            logger.info("开启netty http服务器，监听地址和端口为 http://127.0.0.1:{}/", port);
             ch.closeFuture().sync();
         } finally {
             bossGroup.shutdownGracefully();

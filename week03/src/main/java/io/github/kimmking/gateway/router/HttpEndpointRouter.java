@@ -2,6 +2,9 @@ package io.github.kimmking.gateway.router;
 
 import java.util.List;
 
+/**
+ * @author zhouzeng
+ */
 public interface HttpEndpointRouter {
 
     String route(List<String> endpoints);

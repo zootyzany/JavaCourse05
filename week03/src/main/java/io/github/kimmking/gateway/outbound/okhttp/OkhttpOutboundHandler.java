@@ -3,6 +3,7 @@ package io.github.kimmking.gateway.outbound.okhttp;
 import io.github.kimmking.gateway.filter.HeaderHttpResponseFilter;
 import io.github.kimmking.gateway.filter.HttpRequestFilter;
 import io.github.kimmking.gateway.filter.HttpResponseFilter;
+import io.github.kimmking.gateway.outbound.OutboundHandler;
 import io.github.kimmking.gateway.outbound.httpclient4.NamedThreadFactory;
 import io.github.kimmking.gateway.router.HttpEndpointRouter;
 import io.github.kimmking.gateway.router.RandomHttpEndpointRouter;
@@ -29,21 +30,20 @@ import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 /**
  * @author zhouzeng
  */
-public class OkhttpOutboundHandler {
+public class OkhttpOutboundHandler implements OutboundHandler {
     HttpResponseFilter filter = new HeaderHttpResponseFilter();
     HttpEndpointRouter router = new RandomHttpEndpointRouter();
     private OkHttpClient okHttpClient;
     private ExecutorService proxyService;
     private List<String> backendUrls;
 
-    public OkhttpOutboundHandler(List<String> backends) {
+    public OkhttpOutboundHandler(List<String> backEnds) {
 
-        this.backendUrls = backends.stream().map(this::formatUrl).collect(Collectors.toList());
+        this.backendUrls = backEnds.stream().map(this::formatUrl).collect(Collectors.toList());
 
         int cores = Runtime.getRuntime().availableProcessors();
         long keepAliveTime = 1000;
         int queueSize = 2048;
-        //.DiscardPolicy();
         RejectedExecutionHandler handler = new ThreadPoolExecutor.CallerRunsPolicy();
         proxyService = new ThreadPoolExecutor(cores, cores,
                 keepAliveTime, TimeUnit.MILLISECONDS, new ArrayBlockingQueue<>(queueSize),
@@ -56,6 +56,7 @@ public class OkhttpOutboundHandler {
         return backend.endsWith("/") ? backend.substring(0, backend.length() - 1) : backend;
     }
 
+    @Override
     public void handle(final FullHttpRequest fullRequest, final ChannelHandlerContext ctx, HttpRequestFilter filter) {
         String backendUrl = router.route(this.backendUrls);
         final String url = backendUrl + fullRequest.uri();

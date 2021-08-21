@@ -4,6 +4,7 @@ package io.github.kimmking.gateway.outbound.httpclient4;
 import io.github.kimmking.gateway.filter.HeaderHttpResponseFilter;
 import io.github.kimmking.gateway.filter.HttpRequestFilter;
 import io.github.kimmking.gateway.filter.HttpResponseFilter;
+import io.github.kimmking.gateway.outbound.OutboundHandler;
 import io.github.kimmking.gateway.router.HttpEndpointRouter;
 import io.github.kimmking.gateway.router.RandomHttpEndpointRouter;
 import io.netty.buffer.Unpooled;
@@ -21,6 +22,8 @@ import org.apache.http.impl.nio.client.HttpAsyncClients;
 import org.apache.http.impl.nio.reactor.IOReactorConfig;
 import org.apache.http.protocol.HTTP;
 import org.apache.http.util.EntityUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.concurrent.*;
@@ -30,22 +33,26 @@ import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 
-public class HttpOutboundHandler {
+/**
+ * @author zhouzeng
+ */
+public class HttpOutboundHandler implements OutboundHandler {
+    private static Logger logger = LoggerFactory.getLogger(HttpOutboundHandler.class);
 
     HttpResponseFilter filter = new HeaderHttpResponseFilter();
     HttpEndpointRouter router = new RandomHttpEndpointRouter();
+
     private CloseableHttpAsyncClient httpclient;
     private ExecutorService proxyService;
     private List<String> backendUrls;
 
-    public HttpOutboundHandler(List<String> backends) {
-
-        this.backendUrls = backends.stream().map(this::formatUrl).collect(Collectors.toList());
+    public HttpOutboundHandler(List<String> backEnds) {
+        this.backendUrls = backEnds.stream().map(this::formatUrl).collect(Collectors.toList());
 
         int cores = Runtime.getRuntime().availableProcessors();
         long keepAliveTime = 1000;
         int queueSize = 2048;
-        RejectedExecutionHandler handler = new ThreadPoolExecutor.CallerRunsPolicy();//.DiscardPolicy();
+        RejectedExecutionHandler handler = new ThreadPoolExecutor.CallerRunsPolicy();
         proxyService = new ThreadPoolExecutor(cores, cores,
                 keepAliveTime, TimeUnit.MILLISECONDS, new ArrayBlockingQueue<>(queueSize),
                 new NamedThreadFactory("proxyService"), handler);
@@ -69,18 +76,18 @@ public class HttpOutboundHandler {
         return backend.endsWith("/") ? backend.substring(0, backend.length() - 1) : backend;
     }
 
+    @Override
     public void handle(final FullHttpRequest fullRequest, final ChannelHandlerContext ctx, HttpRequestFilter filter) {
+        filter.filter(fullRequest, ctx);
+
         String backendUrl = router.route(this.backendUrls);
         final String url = backendUrl + fullRequest.uri();
-        filter.filter(fullRequest, ctx);
-        proxyService.submit(() -> fetchGet(fullRequest, ctx, url));
+        proxyService.submit(() -> HttpOutboundHandler.this.fetchGet(fullRequest, ctx, url));
     }
 
     private void fetchGet(final FullHttpRequest inbound, final ChannelHandlerContext ctx, final String url) {
         final HttpGet httpGet = new HttpGet(url);
-        //httpGet.setHeader(HTTP.CONN_DIRECTIVE, HTTP.CONN_CLOSE);
         httpGet.setHeader(HTTP.CONN_DIRECTIVE, HTTP.CONN_KEEP_ALIVE);
-        httpGet.setHeader("mao", inbound.headers().get("mao"));
 
         httpclient.execute(httpGet, new FutureCallback<HttpResponse>() {
             @Override
@@ -88,16 +95,14 @@ public class HttpOutboundHandler {
                 try {
                     handleResponse(inbound, ctx, endpointResponse);
                 } catch (Exception e) {
-                    e.printStackTrace();
-                } finally {
-
+                    logger.error("Httpclient complete failed. cause:[]", e);
                 }
             }
 
             @Override
             public void failed(final Exception ex) {
                 httpGet.abort();
-                ex.printStackTrace();
+                logger.error("Httpclient execute failed. cause:[]", ex);
             }
 
             @Override
@@ -107,33 +112,16 @@ public class HttpOutboundHandler {
         });
     }
 
-    private void handleResponse(final FullHttpRequest fullRequest, final ChannelHandlerContext ctx, final HttpResponse endpointResponse) throws Exception {
+    private void handleResponse(final FullHttpRequest fullRequest, final ChannelHandlerContext ctx, final HttpResponse endpointResponse) {
         FullHttpResponse response = null;
         try {
-//            String value = "hello,kimmking";
-//            response = new DefaultFullHttpResponse(HTTP_1_1, OK, Unpooled.wrappedBuffer(value.getBytes("UTF-8")));
-//            response.headers().set("Content-Type", "application/json");
-//            response.headers().setInt("Content-Length", response.content().readableBytes());
-
-
             byte[] body = EntityUtils.toByteArray(endpointResponse.getEntity());
-//            System.out.println(new String(body));
-//            System.out.println(body.length);
-
             response = new DefaultFullHttpResponse(HTTP_1_1, OK, Unpooled.wrappedBuffer(body));
-
             response.headers().set("Content-Type", "application/json");
             response.headers().setInt("Content-Length", Integer.parseInt(endpointResponse.getFirstHeader("Content-Length").getValue()));
-
             filter.filter(response);
-
-//            for (Header e : endpointResponse.getAllHeaders()) {
-//                //response.headers().set(e.getName(),e.getValue());
-//                System.out.println(e.getName() + " => " + e.getValue());
-//            } 
-
         } catch (Exception e) {
-            e.printStackTrace();
+            logger.error("Invoke handleResponse failed. cause:[]", e);
             response = new DefaultFullHttpResponse(HTTP_1_1, NO_CONTENT);
             exceptionCaught(ctx, e);
         } finally {
@@ -141,12 +129,10 @@ public class HttpOutboundHandler {
                 if (!HttpUtil.isKeepAlive(fullRequest)) {
                     ctx.write(response).addListener(ChannelFutureListener.CLOSE);
                 } else {
-                    //response.headers().set(CONNECTION, KEEP_ALIVE);
                     ctx.write(response);
                 }
             }
             ctx.flush();
-            //ctx.close();
         }
 
     }
