@@ -25,6 +25,7 @@ public class HttpInboundHandler extends ChannelInboundHandlerAdapter {
 
     public HttpInboundHandler(List<String> proxyServer) {
         this.handler = new HttpOutboundHandler(proxyServer);
+//        this.handler = new OkhttpOutboundHandler(proxyServer);
     }
 
     @Override
@@ -43,5 +44,4 @@ public class HttpInboundHandler extends ChannelInboundHandlerAdapter {
             ReferenceCountUtil.release(msg);
         }
     }
-
 }

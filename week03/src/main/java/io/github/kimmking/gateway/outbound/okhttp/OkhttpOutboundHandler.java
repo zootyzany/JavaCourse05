@@ -4,6 +4,7 @@ import io.github.kimmking.gateway.filter.HeaderHttpResponseFilter;
 import io.github.kimmking.gateway.filter.HttpRequestFilter;
 import io.github.kimmking.gateway.filter.HttpResponseFilter;
 import io.github.kimmking.gateway.outbound.OutboundHandler;
+import io.github.kimmking.gateway.outbound.httpclient4.HttpOutboundHandler;
 import io.github.kimmking.gateway.outbound.httpclient4.NamedThreadFactory;
 import io.github.kimmking.gateway.router.HttpEndpointRouter;
 import io.github.kimmking.gateway.router.RandomHttpEndpointRouter;
@@ -15,8 +16,8 @@ import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpUtil;
 import okhttp3.*;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.protocol.HTTP;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.List;
@@ -31,6 +32,8 @@ import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
  * @author zhouzeng
  */
 public class OkhttpOutboundHandler implements OutboundHandler {
+    private static Logger logger = LoggerFactory.getLogger(HttpOutboundHandler.class);
+
     HttpResponseFilter filter = new HeaderHttpResponseFilter();
     HttpEndpointRouter router = new RandomHttpEndpointRouter();
     private OkHttpClient okHttpClient;
@@ -58,48 +61,20 @@ public class OkhttpOutboundHandler implements OutboundHandler {
 
     @Override
     public void handle(final FullHttpRequest fullRequest, final ChannelHandlerContext ctx, HttpRequestFilter filter) {
+        filter.filter(fullRequest, ctx);
+
         String backendUrl = router.route(this.backendUrls);
         final String url = backendUrl + fullRequest.uri();
-        filter.filter(fullRequest, ctx);
-        proxyService.submit(() -> fetchGet(fullRequest, ctx, url));
+        proxyService.submit(() -> execute(fullRequest, ctx, url));
     }
 
-    private void fetchGet(final FullHttpRequest inbound, final ChannelHandlerContext ctx, final String url) {
-        final HttpGet httpGet = new HttpGet(url);
-        //httpGet.setHeader(HTTP.CONN_DIRECTIVE, HTTP.CONN_CLOSE);
-        httpGet.setHeader(HTTP.CONN_DIRECTIVE, HTTP.CONN_KEEP_ALIVE);
-        httpGet.setHeader("mao", inbound.headers().get("mao"));
-
-       /* httpclient.execute(httpGet, new FutureCallback<HttpResponse>() {
-            @Override
-            public void completed(final HttpResponse endpointResponse) {
-                try {
-                    handleResponse(inbound, ctx, endpointResponse);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                } finally {
-
-                }
-            }
-
-            @Override
-            public void failed(final Exception ex) {
-                httpGet.abort();
-                ex.printStackTrace();
-            }
-
-            @Override
-            public void cancelled() {
-                httpGet.abort();
-            }
-        });*/
+    private void execute(final FullHttpRequest inbound, final ChannelHandlerContext ctx, final String url) {
         Request request = new Request.Builder().url(url).build();
         Call call = okHttpClient.newCall(request);
         call.enqueue(new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
-                httpGet.abort();
-                e.printStackTrace();
+                logger.error("Execute the request failed, cause:[]", e);
             }
 
             @Override
@@ -112,15 +87,7 @@ public class OkhttpOutboundHandler implements OutboundHandler {
     private void handleResponse(final FullHttpRequest fullRequest, final ChannelHandlerContext ctx, final Response endpointResponse) throws IOException {
         FullHttpResponse response = null;
         try {
-//            String value = "hello,kimmking";
-//            response = new DefaultFullHttpResponse(HTTP_1_1, OK, Unpooled.wrappedBuffer(value.getBytes("UTF-8")));
-//            response.headers().set("Content-Type", "application/json");
-//            response.headers().setInt("Content-Length", response.content().readableBytes());
-
-
             byte[] body = endpointResponse.body().bytes();
-//            System.out.println(new String(body));
-//            System.out.println(body.length);
 
             response = new DefaultFullHttpResponse(HTTP_1_1, OK, Unpooled.wrappedBuffer(body));
 
@@ -128,12 +95,6 @@ public class OkhttpOutboundHandler implements OutboundHandler {
             response.headers().setInt("Content-Length", Integer.parseInt(endpointResponse.header("Content-Length")));
 
             filter.filter(response);
-
-//            for (Header e : endpointResponse.getAllHeaders()) {
-//                //response.headers().set(e.getName(),e.getValue());
-//                System.out.println(e.getName() + " => " + e.getValue());
-//            }
-
         } catch (IOException e) {
             e.printStackTrace();
             response = new DefaultFullHttpResponse(HTTP_1_1, NO_CONTENT);
@@ -143,12 +104,10 @@ public class OkhttpOutboundHandler implements OutboundHandler {
                 if (!HttpUtil.isKeepAlive(fullRequest)) {
                     ctx.write(response).addListener(ChannelFutureListener.CLOSE);
                 } else {
-                    //response.headers().set(CONNECTION, KEEP_ALIVE);
                     ctx.write(response);
                 }
             }
             ctx.flush();
-            //ctx.close();
         }
 
     }

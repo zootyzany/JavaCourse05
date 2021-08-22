@@ -10,6 +10,6 @@ public class HeaderHttpRequestFilter implements HttpRequestFilter {
 
     @Override
     public void filter(FullHttpRequest fullRequest, ChannelHandlerContext ctx) {
-        fullRequest.headers().set("mao", "soul");
+        System.out.println("打印请求处理前的时间:" + System.currentTimeMillis());
     }
 }

@@ -8,6 +8,6 @@ import io.netty.handler.codec.http.FullHttpResponse;
 public class HeaderHttpResponseFilter implements HttpResponseFilter {
     @Override
     public void filter(FullHttpResponse response) {
-        response.headers().set("kk", "java-1-nio");
+        System.out.println("打印请求处理后的时间:" + System.currentTimeMillis());
     }
 }
