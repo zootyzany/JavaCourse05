@@ -14,9 +14,14 @@ import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpUtil;
+import io.netty.util.internal.StringUtil;
+import org.apache.commons.codec.CharEncoding;
+import org.apache.commons.codec.Charsets;
 import org.apache.http.HttpResponse;
-import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpEntityEnclosingRequestBase;
+import org.apache.http.client.methods.HttpUriRequest;
 import org.apache.http.concurrent.FutureCallback;
+import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.impl.nio.client.HttpAsyncClients;
 import org.apache.http.impl.nio.reactor.IOReactorConfig;
@@ -25,6 +30,7 @@ import org.apache.http.util.EntityUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.net.URI;
 import java.util.List;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
@@ -82,10 +88,25 @@ public class HttpOutboundHandler implements OutboundHandler {
 
         String backendUrl = router.route(this.backendUrls);
         final String url = backendUrl + fullRequest.uri();
-        proxyService.submit(() -> HttpOutboundHandler.this.fetchGet(fullRequest, ctx, url));
+
+        HttpUriRequest request = buildRequest(url, fullRequest);
+        proxyService.submit(() -> execute(fullRequest, request, ctx));
+
+        /*if (HttpMethod.GET.equals(method)) {
+            proxyService.submit(() -> fetchGet(fullRequest, ctx, url));
+        } else if (HttpMethod.POST.equals(method)) {
+            String str = fullRequest.content().toString(Charsets.toCharset(CharEncoding.UTF_8));
+            if (!StringUtil.isNullOrEmpty(str)) {
+                HttpPost post = new HttpPost(url);
+                post.setEntity(new StringEntity(str, "UTF-8"));
+                proxyService.submit(() -> execute(fullRequest, post, ctx));
+            }
+        } else {
+            logger.error("目前该类型方法不支持");
+        }*/
     }
 
-    private void fetchGet(final FullHttpRequest inbound, final ChannelHandlerContext ctx, final String url) {
+    /*private void fetchGet(final FullHttpRequest inbound, final ChannelHandlerContext ctx, final String url) {
         final HttpGet httpGet = new HttpGet(url);
         httpGet.setHeader(HTTP.CONN_DIRECTIVE, HTTP.CONN_KEEP_ALIVE);
 
@@ -108,6 +129,48 @@ public class HttpOutboundHandler implements OutboundHandler {
             @Override
             public void cancelled() {
                 httpGet.abort();
+            }
+        });
+    }*/
+
+    public HttpEntityEnclosingRequestBase buildRequest(final String url, final FullHttpRequest fullRequest) {
+        HttpEntityEnclosingRequestBase request = new HttpEntityEnclosingRequestBase() {
+            @Override
+            public String getMethod() {
+                return fullRequest.method().name();
+            }
+        };
+        request.setURI(URI.create(url));
+        String str = fullRequest.content().toString(Charsets.toCharset(CharEncoding.UTF_8));
+        if (!StringUtil.isNullOrEmpty(str)) {
+            request.setEntity(new StringEntity(str, "utf-8"));
+        }
+        return request;
+    }
+    
+    private void execute(final FullHttpRequest inbound, final HttpUriRequest request, final ChannelHandlerContext ctx) {
+        request.setHeader(HTTP.CONN_DIRECTIVE, HTTP.CONN_KEEP_ALIVE);
+        request.setHeader(HTTP.CONTENT_ENCODING, "application/json");
+
+        httpclient.execute(request, new FutureCallback<HttpResponse>() {
+            @Override
+            public void completed(final HttpResponse endpointResponse) {
+                try {
+                    handleResponse(inbound, ctx, endpointResponse);
+                } catch (Exception e) {
+                    logger.error("Httpclient complete failed. cause:[]", e);
+                }
+            }
+
+            @Override
+            public void failed(final Exception ex) {
+                request.abort();
+                logger.error("Httpclient execute failed. cause:[]", ex);
+            }
+
+            @Override
+            public void cancelled() {
+                request.abort();
             }
         });
     }
@@ -141,6 +204,5 @@ public class HttpOutboundHandler implements OutboundHandler {
         cause.printStackTrace();
         ctx.close();
     }
-
 
 }
