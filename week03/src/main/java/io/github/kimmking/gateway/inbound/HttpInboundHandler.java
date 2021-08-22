@@ -1,9 +1,9 @@
 package io.github.kimmking.gateway.inbound;
 
+import io.github.kimmking.gateway.NettyServerApplication;
 import io.github.kimmking.gateway.filter.HeaderHttpRequestFilter;
 import io.github.kimmking.gateway.filter.HttpRequestFilter;
 import io.github.kimmking.gateway.outbound.OutboundHandler;
-import io.github.kimmking.gateway.outbound.httpclient4.HttpOutboundHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.handler.codec.http.FullHttpRequest;
@@ -24,8 +24,15 @@ public class HttpInboundHandler extends ChannelInboundHandlerAdapter {
     private HttpRequestFilter filter = new HeaderHttpRequestFilter();
 
     public HttpInboundHandler(List<String> proxyServer) {
-        this.handler = new HttpOutboundHandler(proxyServer);
-//        this.handler = new OkhttpOutboundHandler(proxyServer);
+        // 模拟Spring的依赖注入
+        OutboundHandler handler = (OutboundHandler) NettyServerApplication.CONTEXT.get("handler_type");
+        this.handler = handler;
+    }
+
+    public HttpInboundHandler() {
+        // 模拟Spring的依赖注入
+        OutboundHandler handler = (OutboundHandler) NettyServerApplication.CONTEXT.get("handler_type");
+        this.handler = handler;
     }
 
     @Override
