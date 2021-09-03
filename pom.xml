@@ -18,6 +18,7 @@
         <module>week02</module>
         <module>test</module>
         <module>week04</module>
+        <module>week05</module>
     </modules>
 
     <packaging>pom</packaging>
