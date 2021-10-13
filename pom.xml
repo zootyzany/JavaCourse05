@@ -23,6 +23,7 @@
         <module>week07</module>
         <module>week08</module>
         <module>order</module>
+        <module>week09</module>
     </modules>
 
     <packaging>pom</packaging>
